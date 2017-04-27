@@ -1,0 +1,130 @@
+library(plotly)
+library(shiny)
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(dygraphs)
+library(xts)
+library(DT)
+library(tidyr)
+library(flexdashboard)
+
+outcome_data=read.csv("C:/Users/44041399/Documents/BT_data.csv",stringsAsFactors = F)
+outcome_data1=read.csv("C:/Users/44041399/Documents/BT_Time_Series.csv",stringsAsFactors = F)
+#abc<- as.Date(outcome_data1$Date, "%m/%d/%y")date1 = seq(Sys.Date() - 145, Sys.Date(), 1)
+df1<-data.frame(outcome_data1,date1)
+
+shinyServer(function(input, output) 
+{
+  filtered1 <- reactive({   
+    if (is.null(input$typeMembership)) { return(NULL)}  
+    
+    outcome_data %>% 
+      filter(
+        Membership %in% input$typeMembership,
+        Channel %in% input$typeChannel,
+        Decile %in% input$typeDecile,      
+        Segment %in% input$typeSegment)  
+   })
+   
+  card_type <- reactive({    
+    if (is.null(input$typeChannel)) { return(NULL)}
+    
+    spread(outcome_data %>% 
+      filter(
+        Channel %in% input$typeChannel,  
+        Decile %in% input$typeDecile, 
+        Segment %in% input$typeSegment) %>% 
+          select(Membership, Group, Leads) %>%         
+            group_by(Membership, Group) %>%    
+              summarise(Amt=sum(Leads)), Group, Amt
+      )
+    })
+    
+  response_rate <- reactive({   
+    if (is.null(input$typeChannel)) { return(NULL)}      
+    
+    outcome_data %>% 
+      filter(
+        Membership %in% input$typeMembership,    
+        Channel %in% input$typeChannel,      
+        Decile %in% input$typeDecile,       
+        Segment %in% input$typeSegment) %>%       
+          select(Group, Leads, Responders) %>%       
+            group_by(Group) %>%       
+              summarise(Lead=sum(Leads) , Response=sum(Responders)) %>%      
+                mutate(R_rate = (Response*100)/Lead) %>%      
+                  select(Group, R_rate
+        ) 
+   })
+   
+   cpa <- reactive({    if (is.null(input$typeChannel)) { return(NULL)}        outcome_data %>%      filter(Membership %in% input$typeMembership,             Channel %in% input$typeChannel,             Decile %in% input$typeDecile,             Segment %in% input$typeSegment) %>%      select(Group, Leads, Amount) %>%      filter(Group == "TEST") %>%      group_by(Group) %>%      summarise(Lead=sum(Leads) , Response=sum(Amount)) %>%      mutate(R_rate = Response/Lead)  })
+   
+   Proposition_view <- reactive({    if (is.null(input$typeChannel)) { return(NULL)}        outcome_data %>%      filter(Channel %in% input$typeChannel,             Decile %in% input$typeDecile,             Segment %in% input$typeSegment) %>%      select(Membership, Group, Leads, Responders) %>%      group_by(Membership, Group) %>%      summarise(Lead=sum(Leads) , Response=sum(Responders)) %>%      mutate(R_rate = (Response*100)/Lead) %>%      select(Membership, Group, R_rate) %>%      filter(Group == "TEST") %>%      select(Membership, R_rate)  })
+   
+   Channel_view <- reactive({    if (is.null(input$typeChannel)) { return(NULL)}        outcome_data %>%      filter(Membership %in% input$typeMembership,             Decile %in% input$typeDecile,             Segment %in% input$typeSegment) %>%      select(Channel, Group, Leads, Responders) %>%      group_by(Channel, Group) %>%      summarise(Lead=sum(Leads) , Response=sum(Responders)) %>%      mutate(R_rate = (Response*100)/Lead) %>%      select(Channel, Group, R_rate) %>%      filter(Group == "TEST") %>%      select(Channel, R_rate)  })
+   
+   Decile_view <- reactive({    if (is.null(input$typeChannel)) { return(NULL)}        outcome_data %>%      filter(Membership %in% input$typeMembership,             Channel %in% input$typeChannel,             Segment %in% input$typeSegment) %>%      select(Decile, Group, Leads, Responders) %>%      group_by(Decile, Group) %>%      summarise(Lead=sum(Leads) , Response=sum(Responders)) %>%      mutate(R_rate = (Response*100)/Lead) %>%      select(Decile, Group, R_rate) %>%      filter(Group == "TEST") %>%      select(Decile, R_rate)  })
+   
+   SpendSeg_view <- reactive({    if (is.null(input$typeChannel)) { return(NULL)}        outcome_data %>%      filter(Membership %in% input$typeMembership,             Channel %in% input$typeChannel,             Decile %in% input$typeDecile) %>%      select(Segment, Group, Leads, Responders) %>%      group_by(Segment, Group) %>%      summarise(Lead=sum(Leads) , Response=sum(Responders)) %>%      mutate(R_rate = (Response*100)/Lead) %>%      select(Segment, Group, R_rate) %>%      filter(Group == "TEST") %>%      select(Segment, R_rate)  })
+   
+   output$LeadsBox <- renderValueBox({   
+    shinydashboard::valueBox(format(sum(filtered1()$Leads), big.mark = ","), "Leads", icon = icon("user", lib = "glyphicon"), color = "yellow", width = 40) 
+   })
+   
+   output$RespondersBox <- renderValueBox({
+    shinydashboard::valueBox(format(sum(filtered1()$Responders), big.mark = ",") , "Responders", icon = icon("credit-card", lib = "glyphicon"), color = "teal", width = 40)  
+   }) #red, yellow, aqua, blue, light-blue, green, navy, teal, olive, lime, orange, fuchsia, purple, maroon, black  
+   
+   output$BTBox <- renderValueBox({
+    shinydashboard::valueBox(paste("$", format(ceiling(sum(filtered1()$Amount)), big.mark = ",")), "Balance Transfers", icon = icon("thumbs-up", lib = "glyphicon"), color = "olive", width = 40)  
+   })
+   
+   output$plot1 <- renderPlotly({    
+   plot_ly(Proposition_view(), x=Proposition_view()$Membership, y=Proposition_view()$R_rate, height = 150) %>%     
+    layout(yaxis= list(title="Response Rate"))   
+   })    
+   
+   output$plot2 <- renderPlotly({    
+    plot_ly(Channel_view(), x=Channel_view()$Channel, y=Channel_view()$R_rate, height = 150) %>%     
+    layout(yaxis= list(title="Response Rate"))   
+   })    
+   
+   output$plot3 <- renderPlotly({     
+    plot_ly(Decile_view(), x=as.factor(Decile_view()$Decile), y=Decile_view()$R_rate, height = 150) %>%    
+      layout(yaxis= list(title="Response Rate"))   
+   })    
+   
+   output$plot4 <- renderPlotly({    
+    plot_ly(SpendSeg_view(), x=SpendSeg_view()$Segment, y=SpendSeg_view()$R_rate, height = 150) %>%    
+      layout(yaxis= list(title="Response Rate"))   
+   })
+   
+   output$CardTypePlot <- renderGauge({    
+    flexdashboard::gauge(round(as.numeric(cpa()[1,4]),digits = 0), min = 0, max = 1000, symbol = '$', label = "CPA",   
+      sectors = gaugeSectors(success = c(0,300), warning = c(301,500), danger = c(501,1000))) 
+   })
+   
+   output$TypeGauge <- renderGauge({  
+    flexdashboard::gauge(round(as.numeric(response_rate()[2,2]),digits = 2), min = 0, max = 10, symbol = '%', label = "Response rate",
+      sectors = gaugeSectors(success = c(4,10), warning = c(2,3), danger = c(0,1)))  
+   })
+   
+   output$plot <- renderDygraph({     
+   
+    timeSeriesData <- xts(df1[,"Responders"], order.by = df1$date1)   
+    
+    timeSeriesData %>%   
+      dygraph() %>%   
+        dyHighlight(hideOnMouseOut = TRUE) %>% 
+          dyOptions(labelsKMB = TRUE,    
+            gridLineColor = 'lightgrey',    
+            colors = 'red',      
+            animatedZooms = TRUE,     
+            rightGap = 20      
+            ) %>%      
+          dyRangeSelector(dateWindow = c(Sys.Date() - 90, Sys.Date() + 1))      
+    })
+    
+    #output$results <- renderTable({ Proposition_view() })
+  })
