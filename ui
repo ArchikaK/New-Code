@@ -1,0 +1,73 @@
+library(plotly)
+library(shiny)
+library(shinydashboard)
+library(dygraphs)
+library(DT)
+library(flexdashboard)
+
+outcome_data=read.csv("C:/Users/44041399/Documents/BT_data.csv",stringsAsFactors = F)
+
+dashboardPage(  
+  dashboardHeader(title = "BT Campaign"),
+    dashboardSidebar(width = 200,
+    
+    selectInput("typeMembership",          
+      label = em("Select Proposition",style="text-align:center;color:#FFA319;font-size:100%"),                    
+      unique(outcome_data$Membership),selected = 'Premier', selectize = TRUE ,multiple = TRUE),         
+      
+    selectInput("typeChannel",                             
+      label = em("Select Channel",style="text-align:center;color:#FFA319;font-size:100%"),               
+      unique(outcome_data$Channel),selected = 'DM', selectize = TRUE, multiple = TRUE),                       
+      
+    selectInput('typeDecile',em('Choose Decile',style="text-align:center;color:#FFA319;font-size:100%"),                   
+      unique(outcome_data$Decile),selected = '1', selectize = TRUE, multiple = TRUE),                          
+      
+    selectInput('typeSegment',em('Choose Segment',style="text-align:center;color:#FFA319;font-size:100%"),         
+      unique(outcome_data$Segment),selected = 'Spender', selectize = TRUE, multiple = TRUE)  
+   ),
+   
+   dashboardBody( 
+    fluidRow( 
+      #tags$head(tags$style(HTML(".small-box {height: 75px}"))),  
+      shinydashboard::valueBoxOutput("LeadsBox"),     
+      shinydashboard::valueBoxOutput("RespondersBox"),    
+      shinydashboard::valueBoxOutput("BTBox")
+      
+      ),     
+    fluidRow( shinydashboard::valueBox("Performance", "", color = "blue", width = 100)),
+    
+    fluidRow(   
+      tabBox(  
+        title = "", width = 4,  
+        # The id lets us use input$tabset1 on the server to find the current tab 
+        id = "tabset1",    
+        tabPanel("Proposition", plotlyOutput("plot1", height = 140)),  
+        tabPanel("Segment", plotlyOutput("plot2", height = 140)),     
+        tabPanel("Decile", plotlyOutput("plot3", height = 140)),   
+        tabPanel("Spend Segment", plotlyOutput("plot4", height = 140))
+      ),
+      
+      box(    
+        title = "Cost Per Acquisition", status = "warning", solidHeader = TRUE, width = 4, height = 200,   
+        collapsible = TRUE,    
+        flexdashboard::gaugeOutput("CardTypePlot")     
+      ),
+      
+      box(     
+        title = "Incremental Response Rate", status = "warning", solidHeader = TRUE, width = 4, height = 200,   
+        collapsible = TRUE,      
+        flexdashboard::gaugeOutput("TypeGauge")    
+      )
+    ),
+    
+    fluidRow(      
+      box(title = "Time Series", width = 12, collapsible = TRUE,  
+      dygraphOutput('plot')   
+      )
+    )    
+    
+    # ,fluidRow( 
+    #   tableOutput("results")  
+    # ) 
+  )
+)
